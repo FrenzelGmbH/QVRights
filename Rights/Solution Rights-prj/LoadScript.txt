@@ -12,6 +12,7 @@ SET DayNames='Mo;Di;Mi;Do;Fr;Sa;So';
 
 
 
+//sooner or later I will include the qv-components http://qvcomponents.com
 ///$tab RIGHTS
 
 //TestZone for parameters

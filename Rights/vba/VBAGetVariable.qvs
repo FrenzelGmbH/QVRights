@@ -1,0 +1,136 @@
+﻿SUB ReadObjectsAndSetRights(SheetName)
+
+	rem ** minimize all sheet objects on sheet Main **
+	rem Rights by Frenzel GmbH
+	rem Author Philipp Frenzel
+	
+	varVisibilityPrefix = "=only({<RightRule={'$(=OSUser())"
+	varVisibilitySuffix = "'}>} RightAccess)"
+	
+	set s=ActiveDocument.Sheets(SheetName)
+	for i=0 to s.NoOfSheetObjects-1
+    	'the formula for our rights management
+    	varVisibility = varVisibilityPrefix & s.GetProperties.SheetId & s.SheetObjects(i).getObjectId & varVisibilitySuffix
+    	
+    	Set obj = ActiveDocument.GetSheetObject(s.SheetObjects(i).getObjectId)
+    	if obj.getObjectType > 9 OR obj.getObjectType = 4 THEN
+			Set objProp = obj.GetProperties		
+			Set objExpr = objProp.Layout.Frame.Show
+	
+			' toggle invisible property of chart expression
+			' based on value of DEPT field selection
+			objExpr.Expression.v = varVisibility
+			'objExpr.Expression.v = 0
+			objExpr.Always = false
+			obj.SetProperties objProp
+		end if
+	next
+
+END SUB
+
+SUB LoopSheets
+
+	rem ** loop through all sheets **
+	rem Rights by Frenzel GmbH
+	rem Author Philipp Frenzel
+	for i = 0 to ActiveDocument.NoOfSheets - 1
+    	set ss= ActiveDocument.GetSheet(i)
+    	ReadObjectsAndSetRights ss.GetProperties.Name
+	next
+
+END SUB
+
+SUB XLSTest
+
+	RightsExcelAppend
+
+END SUB
+
+
+SUB RightsExcelAppend
+	
+	rem ** this routine will append all object ID's to the xls defined in varFileXLSRights **
+	rem Rights by Frenzel GmbH
+	rem Author Philipp Frenzel
+	
+	rem first we need to create an instance of Excel
+	Set objExcel = CREATEOBJECT("Excel.Application")
+	
+	rem then we open our workbook
+	WITH objExcel
+		.DefaultSaveFormat = xlWorkbookNormal
+		.DisplayAlerts = FALSE
+		.Workbooks.Open getVariable("varFileXLSRights")
+		.DisplayFullScreen = FALSE
+		.Visible = FALSE
+	END WITH
+	
+	rem switch to the first worksheet
+	Set objExcelSheet = objExcel.Worksheets(1)
+	rem check for current range
+	Set objExcelRange = objExcelSheet.Range("A65535").End(-4162)
+	rem grep the latest row in column A
+	intLastRow = objExcelRange.Row
+	
+	for i = 0 to ActiveDocument.NoOfSheets - 1
+    	Set ss = ActiveDocument.GetSheet(i)
+    	sheetId =ss.GetProperties.SheetId
+    	 rem loop through all field elements
+    	 Set s=ActiveDocument.Sheets(ss.GetProperties.Name)
+    	 rem initial row counter for written lines in xls
+    	 t = 0
+		 for j=0 to s.NoOfSheetObjects-1
+		 	REM FIRST GET THE OBJECT ID FOR THE EXISTANCE CHECK
+		 	objectId = s.SheetObjects(j).getObjectId
+		 	REM WE NEED TO CHECK, IF RULES FOR OBJECT ARE ALREADY SET OR NOT
+		 	IF replace(objectId,"Document\","") <> getVariable("RIGHTS" & replace(objectId,"Document\","")) THEN	
+			 	rem write the document name to xls
+			 	objExcelSheet.Cells(intLastRow + t, 1) = getVariable("varStringDocumentName")
+			 	rem write the current sheet name to xls
+			 	objExcelSheet.Cells(intLastRow + t, 2) = sheetId
+			    rem now I can write all object ids to xls
+			    objExcelSheet.Cells(intLastRow + t, 3) = replace(objectId,"Document\","")
+			    rem default visible to Admin
+			    objExcelSheet.Cells(intLastRow + t, 4) = 1
+			    rem increment the row counter only as a new row is added
+			    t = t+1
+			END IF
+			cleanVariable("RIGHTS" & replace(objectId,"Document\",""))
+		 next		
+	next
+
+	rem save xls and quir application
+	objExcelSheet.SaveAs getVariable("varFileXLSRights")
+	objExcel.Application.Quit
+	Set objExcelSheet = NOTHING
+	Set objExcel = NOTHING
+
+END SUB
+
+
+rem ** will read and return the content of a variable defined in script or document **
+rem Rights by Frenzel GmbH
+rem Author Philipp Frenzel
+
+function getVariable(varName)
+ Set v = ActiveDocument.Variables(varName)
+ IF v Is Nothing THEN
+ 	getVariable = ""
+ ELSE
+ 	getVariable = v.GetContent.String
+ END IF
+end function
+
+rem ** will unset a variable defined in script or document **
+rem Rights by Frenzel GmbH
+rem Author Philipp Frenzel
+
+function cleanVariable(varName)
+ Set v = ActiveDocument.Variables(varName)
+ IF v Is Nothing THEN
+ 	cleanVariable = TRUE
+ ELSE
+ 	ActiveDocument.RemoveVariable varName
+ 	cleanVariable = TRUE
+ END IF
+end function

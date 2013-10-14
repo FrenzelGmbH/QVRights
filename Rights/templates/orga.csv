@@ -1,0 +1,48 @@
+31000000;S Proserv SK;3100;00080000;
+31009000;Administration/Management /Div.;3100;31000000;S Proserv SK
+31006500;Sourcing /Dept.;3100;31009000;Administration/Management /Div.
+31006200;Tactical Purchasing /Dept.;3100;31009000;Administration/Management /Div.
+31006400;Order Management /Dept.;3100;31009000;Administration/Management /Div.
+31006800;Customized Procurement Services /Dept.;3100;31009000;Administration/Management /Div.
+31010000;S Proserv CZ;3101;00410000;
+31010003;PSCZ_vedení společnosti;3101;31010000;S Proserv CZ
+31010006;tým nákup IT;3101;31010003;PSCZ_vedení společnosti
+31010007;tým nákup služeb a správy majetku;3101;31010003;PSCZ_vedení společnosti
+31010008;tým back office a podpora;3101;31010003;PSCZ_vedení společnosti
+37050000;Procurement Services GmbH;3705;00050001;
+37050001;Erste Group Procurement;3705;37050000;Procurement Services GmbH
+37052066;Technical Users;3705;37050001;Erste Group Procurement
+37051000;Erste Group Procurement Management Board;3705;37050001;Erste Group Procurement
+37051001;Audit;3705;37051000;Erste Group Procurement Management Board
+37051010;Employees Council;3705;37051000;Erste Group Procurement Management Board
+37051500;Org/IT;3705;37051000;Erste Group Procurement Management Board
+37051100;Human Resource Management;3705;37051000;Erste Group Procurement Management Board
+37050572;Verrechnungsstelle Karenz;3705;37051100;Human Resource Management
+37050575;Verrechnungsstelle Altersteilzeit;3705;37051100;Human Resource Management
+37051200;Finance;3705;37051000;Erste Group Procurement Management Board
+37051201;Finance/Controlling;3705;37051200;Finance
+37051202;Governance;3705;37051200;Finance
+37051203;Business Intelligence Unit;3705;37051200;Finance
+37051400;Country Management Austria;3705;37051000;Erste Group Procurement Management Board
+37051410;Travel Management & Customer Services;3705;37051400;Country Management Austria
+37051411;Customer Services;3705;37051410;Travel Management & Customer Services
+37051412;Travel Management;3705;37051410;Travel Management & Customer Services
+37051420;Warehouse;3705;37051400;Country Management Austria
+37051430;Sourcing;3705;37051400;Country Management Austria
+37051440;Tactical Purchasing & Order Management;3705;37051400;Country Management Austria
+37051442;Order Management;3705;37051440;Tactical Purchasing & Order Management
+37051443;Tactical Purchasing;3705;37051440;Tactical Purchasing & Order Management
+37051450;Trade;3705;37051400;Country Management Austria
+37052001;SPV Druck;3705;37050001;Erste Group Procurement
+37052002;EBSPK;3705;37050001;Erste Group Procurement
+37050002;Erste Group Procurement CZ;3705;37050000;Procurement Services GmbH
+37050003;Erste Group Procurement SK;3705;37050000;Procurement Services GmbH
+37050004;Erste Group Procurement HU;3705;37050000;Procurement Services GmbH
+37050005;Erste Group Procurement RO;3705;37050000;Procurement Services GmbH
+37050006;Erste Group Procurement HR;3705;37050000;Procurement Services GmbH
+37050007;Erste Group Procurement RS;3705;37050000;Procurement Services GmbH
+37050008;Erste Group Procurement MK;3705;37050000;Procurement Services GmbH
+37050009;Erste Group Procurement SI;3705;37050000;Procurement Services GmbH
+37050010;Erste Group Procurement UA;3705;37050000;Procurement Services GmbH
+37050011;Erste Group Procurement ME;3705;37050000;Procurement Services GmbH
+37050012;Erste Group Procurement BA;3705;37050000;Procurement Services GmbH

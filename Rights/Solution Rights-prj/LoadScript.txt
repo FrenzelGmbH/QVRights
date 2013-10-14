@@ -1,0 +1,253 @@
+﻿///$tab Main
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep='.';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='#.##0,00 €;-#.##0,00 €';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD.MM.YYYY';
+SET TimestampFormat='DD.MM.YYYY hh:mm:ss[.fff]';
+SET MonthNames='Jan;Feb;Mrz;Apr;Mai;Jun;Jul;Aug;Sep;Okt;Nov;Dez';
+SET DayNames='Mo;Di;Mi;Do;Fr;Sa;So';
+
+
+
+///$tab RIGHTS
+
+//TestZone for parameters
+SET varDocumentFormula = "DocumentName()";
+SET varSheetFormula = "GetActiveSheetId()";
+SET varCurrentUser = "OSUser()";
+
+// ************************************************** //
+// RIGHTS BY Frenzel GmbH - COPY 2013 www.frenzel.net //
+// AUTHOR Philipp Frenzel <philipp@frenzel.net        //
+// ************************************************** //
+
+SET varNTDomain = "FRENZELSRV2008"; //Here you have to set your nt-domain, as this is needed by logic
+SET varFileXLSRights = "D:\FrenzelGmbh\QlikView\Rights\RightsAdmin.xlsx";
+SET varStringDocumentName = "=DocumentName()";
+
+QUALIFY *;
+$(varNTDomain):
+CrossTable(Sheet, Daten, 4)
+LOAD * FROM
+RightsAdmin.xlsx
+(ooxml, embedded labels, header is 2 lines, table is Rights);
+UNQUALIFY *;
+
+TRACE Loading the Rights Table into the Application;
+
+Rights:
+NOCONCATENATE LOAD
+	replace([$(varNTDomain).Sheet],'.','\') AS RightUser
+	,replace([$(varNTDomain).Sheet],'.','\') & [$(varNTDomain).$(varNTDomain).Sheet] & 'Document\' & [$(varNTDomain).$(varNTDomain).ObjectID] AS RightRule
+	,[$(varNTDomain).Daten] AS RightAccess
+	,[$(varNTDomain).$(varNTDomain).ObjectID] AS RightObjectId
+	,[$(varNTDomain).$(varNTDomain).Sheet] & 'Document\' & [$(varNTDomain).$(varNTDomain).ObjectID] AS Suffix_RightRule
+RESIDENT $(varNTDomain);
+
+DROP TABLE $(varNTDomain);
+
+
+// ************************************************************** //
+// Dynamic Variables by Frenzel GmbH - COPY 2013 www.frenzel.net  //
+// AUTHOR Philipp Frenzel <philipp@frenzel.net                    //
+// ************************************************************** //
+
+//Get the number of available rows in the rights table
+LET varIntegerNoVariables = NoOfRows('Rights');
+
+TRACE Number of Dynamic Vars: $(varIntegerNoVariables);
+ 
+//Lets build the dynamic variables
+FOR DatenbankIter = 0 TO $(varIntegerNoVariables) - 1
+ 
+ 	//here we build the logic for the object comparison
+	LET curVariableName = peek('RightObjectId',DatenbankIter,'Rights');
+	LET RIGHTS$(curVariableName)= peek('RightObjectId',DatenbankIter,'Rights'); // & peek('RightObjectId',DatenbankIter,'Rights');
+	
+	//and here the logic for the user / orga check
+	LET curVariableNameUser = replace(replace(replace(replace(replace(replace(peek('RightUser',DatenbankIter,'Rights'),' ',''),'\',''),'/',''),'#',''),'&',''),'@','');
+	LET RIGHTSUSER$(curVariableNameUser) = replace(replace(peek('RightUser',DatenbankIter,'Rights'),'$(varNTDomain)\',''),'.',''); //here we need to remove the domain prefix, as it is not possible to compare it with the orga import file
+
+NEXT
+
+
+// ************************************************************* //
+// Here we will read the orga structure from our rights document //
+// will be substituted by a qvd or something else user specific  //
+// Mimimun Requierement:                                         //
+// **current id**												 //
+// **parent id** - referencing the current id					 //
+// **name** the label for the current node						 //
+// ************************************************************* //
+
+//the latest expiration date for "foreign" customers -> if a user is above then he is allowed to see object, otherwise restricted
+LET varExpirationDate = today();
+
+Tmp_R_Groups:
+LOAD ID, //Org Unit Id
+     Name, // Org Unit Name
+     ParentID //Parent Org Unit Id
+FROM
+RightsAdmin.xlsx
+(ooxml, embedded labels, table is Groups);
+
+
+//in a second step we load the foreign restrictions
+
+
+R_Groups_Plain:
+Hierarchy (ID, ParentID, Name, ,Name, Path,'#',Deep)
+LOAD 
+	ID,
+	ParentID,
+	Name
+RESIDENT Tmp_R_Groups;
+DROP TABLE Tmp_R_Groups; //not needed anymore!
+
+R_Groups:
+NoConcatenate LOAD
+	*
+	, ID & ' ' & replace(Path,'.','') AS RightsOrgaComparission
+Resident R_Groups_Plain;
+DROP TABLE R_Groups_Plain;
+
+//load the users
+//first the internal "auto users"
+TmpPersona:
+LOAD PersonalNr, 
+     Name AS Pers_Name, 
+     Vorname AS Pers_Vorname, 
+     Email, 
+     DateDeleted, 
+     ID,
+     OSUser,
+     1 AS RIGHTSCOUNT
+FROM
+RightsAdmin.xlsx
+(ooxml, embedded labels, table is Persona);
+
+//load all mails from our internal personal source, as we need them to enrich our qlikview data backbone
+InternalPersonalReference:
+NOCONCATENATE LOAD
+	Email
+RESIDENT TmpPersona;
+
+//joining all time information from our qlikview data backbone
+CONCATENATE (InternalPersonalReference)
+LOAD
+	Email
+FROM
+databackbone\InternalUserGroup.qvd (qvd);
+
+//here we load only distinct mails, to store them back into our databackbone!
+CleanInternalPersonalReference:
+NoConcatenate LOAD DISTINCT
+	Email,
+	1 AS RIGHTSCOUNT
+RESIDENT InternalPersonalReference;
+DROP TABLE InternalPersonalReference;
+STORE CleanInternalPersonalReference INTO databackbone\InternalUserGroup.qvd (qvd); //here we enrich our data backbone as we need to secure only internal records are stored
+
+
+//here we load the foreign keys
+CONCATENATE(TmpPersona)
+LOAD Name AS Pers_Name, 
+     Vorname AS Pers_Vorname, 
+     Email, 
+     DateDeleted,
+     OSUser,
+     2 AS RIGHTSCOUNT
+FROM
+RightsAdmin.xlsx
+(ooxml, embedded labels, table is PersonaExternal);
+
+//in this step we concatenate the internal email reference to identify the max values
+CONCATENATE(TmpPersona)
+LOAD 
+	Email,
+	RIGHTSCOUNT + 2 AS RIGHTSCOUNT
+RESIDENT CleanInternalPersonalReference;
+DROP TABLE CleanInternalPersonalReference;
+
+//here we build our correction reference (only user with 1 as RIGHTSCOUNT or 3 as RIGHTSCOUNT are allowed
+ControlTablePersona:
+NoConcatenate LOAD
+	Email,
+	SUM(RIGHTSCOUNT) AS ControlSum
+RESIDENT TmpPersona
+GROUP BY Email;
+
+TablePersona:
+NOCONCATENATE LOAD Email, ControlSum
+RESIDENT ControlTablePersona
+WHERE ControlSum <> 5;
+
+DROP TABLE ControlTablePersona;
+
+INNER JOIN(TablePersona)
+LOAD
+	*
+RESIDENT TmpPersona;
+DROP TABLE TmpPersona;
+
+//next we remove our not needed helpers from TablePersona, as they are in our way...
+OnlyOriginalPersona:
+NoConcatenate LOAD 
+	//RowNo() AS PersonalID,
+	*
+RESIDENT TablePersona
+WHERE RIGHTSCOUNT < 3;
+DROP TABLE TablePersona;
+
+//now i need to match the 
+Left Join(OnlyOriginalPersona)
+LOAD Distinct
+	//join on
+	ID,
+	//add fields
+	RightsOrgaComparission AS MatchCriteria
+RESIDENT R_Groups;
+
+//finally we need to let the user grep the rights from his related group
+TmpGroupToUser:
+NoConcatenate Load
+	OSUser AS RightUser_TMP,
+	'$(varNTDomain)\' & MatchCriteria AS RightUser
+RESIDENT OnlyOriginalPersona;
+
+JOIN(TmpGroupToUser)
+LOAD
+	//JOIN ON
+	RightUser,
+	//add fields
+	Suffix_RightRule,
+	RightAccess,
+	RightObjectId
+Resident Rights;
+
+CONCATENATE(Rights)
+LOAD 
+	RightUser_TMP AS RightUser,
+	RightUser_TMP & Suffix_RightRule AS RightRule,
+	RightAccess,
+	RightObjectId
+RESIDENT TmpGroupToUser;
+DROP TABLE TmpGroupToUser;
+
+
+// ************************************************** //
+// RIGHTS BY Frenzel GmbH - COPY 2013 www.frenzel.net //
+// AUTHOR Philipp Frenzel <philipp@frenzel.net        //
+// ************************************************** //
+///$tab Inline Test
+
+Testdatentabelle:
+LOAD * INLINE [
+    F1, F2
+    A, D
+    B, E
+    C, F
+];

@@ -1,0 +1,13 @@
+﻿rem ** will unset a variable defined in script or document **
+rem Rights by Frenzel GmbH
+rem Author Philipp Frenzel
+
+function cleanVariable(varName)
+ Set v = ActiveDocument.Variables(varName)
+ IF v Is Nothing THEN
+ 	cleanVariable = TRUE
+ ELSE
+ 	ActiveDocument.RemoveVariable varName
+ 	cleanVariable = TRUE
+ END IF
+end function

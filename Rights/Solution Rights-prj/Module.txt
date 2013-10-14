@@ -1,0 +1,265 @@
+﻿SUB ReadObjectsAndSetRights(SheetName)
+
+	rem ** minimize all sheet objects on sheet Main **
+	rem Rights by Frenzel GmbH
+	rem Author Philipp Frenzel
+	
+	varVisibilityPrefix = "=if(only({<RightRule={'$(=OSUser())"
+	varVisibilitySuffix = "'}>} RightAccess)=1,1,0)"
+	
+	set s=ActiveDocument.Sheets(SheetName)
+	for i=0 to s.NoOfSheetObjects-1
+    	'the formula for our rights management
+    	varVisibility = varVisibilityPrefix & s.GetProperties.SheetId & s.SheetObjects(i).getObjectId & varVisibilitySuffix
+    	
+    	Set obj = ActiveDocument.GetSheetObject(s.SheetObjects(i).getObjectId)
+    	if obj.getObjectType > 9 OR obj.getObjectType = 4 THEN
+			Set objProp = obj.GetProperties		
+			Set objExpr = objProp.Layout.Frame.Show
+	
+			' toggle invisible property of chart expression
+			' based on value of DEPT field selection
+			objExpr.Expression.v = varVisibility
+			'objExpr.Expression.v = 0
+			objExpr.Always = false
+			obj.SetProperties objProp
+		end if
+	next
+
+END SUB
+
+SUB LoopSheets
+
+	rem ** loop through all sheets **
+	rem Rights by Frenzel GmbH
+	rem Author Philipp Frenzel
+	for i = 0 to ActiveDocument.NoOfSheets - 1
+    	set ss= ActiveDocument.GetSheet(i)
+    	varCompare = ss.GetProperties.Name 	
+    	IF LEFT(varCompare,7) <> "Sandbox" THEN
+    	 	ReadObjectsAndSetRights varCompare
+    	END IF
+	next
+
+END SUB
+
+SUB XLSTest
+
+	RightsExcelAppend
+
+END SUB
+
+REM Need to have a subroutine to seperate sheets from append logic!
+SUB RightsExcelAppend
+	
+	rem ** this routine will append all object ID's to the xls defined in varFileXLSRights **
+	rem Rights by Frenzel GmbH
+	rem Author Philipp Frenzel
+	
+	rem first we need to create an instance of Excel
+	Set objExcel = CREATEOBJECT("Excel.Application")
+	
+	rem then we open our workbook
+	WITH objExcel
+		.DefaultSaveFormat = xlWorkbookNormal
+		.DisplayAlerts = FALSE
+		.Workbooks.Open getVariable("varFileXLSRights")
+		.DisplayFullScreen = FALSE
+		.Visible = FALSE
+	END WITH
+	
+	rem switch to the first worksheet
+	Set objExcelSheet = objExcel.Worksheets(1)
+	rem check for current range
+	Set objExcelRange = objExcelSheet.Range("A65535").End(-4162)
+	rem grep the latest row in column A
+	intLastRow = objExcelRange.Row
+	
+	for i = 0 to ActiveDocument.NoOfSheets - 1
+    	Set ss = ActiveDocument.GetSheet(i)
+    	rem implement the possibility to "exclude" tabs with the Sandbox prefix
+    	varCompare = ss.GetProperties.Name 	
+    	IF LEFT(varCompare,7) <> "Sandbox" THEN
+	    	sheetId =ss.GetProperties.SheetId
+	    	 rem loop through all field elements
+	    	 Set s=ActiveDocument.Sheets(ss.GetProperties.Name)
+	    	 rem initial row counter for written lines in xls
+	    	 t = 0
+			 for j=0 to s.NoOfSheetObjects-1
+			 	REM FIRST GET THE OBJECT ID FOR THE EXISTANCE CHECK
+			 	objectId = s.SheetObjects(j).getObjectId
+			 	REM WE NEED TO CHECK, IF RULES FOR OBJECT ARE ALREADY SET OR NOT
+			 	IF replace(objectId,"Document\","") <> getVariable("RIGHTS" & replace(objectId,"Document\","")) THEN	
+				 	rem write the document name to xls
+				 	objExcelSheet.Cells(intLastRow + t, 1) = getVariable("varStringDocumentName")
+				 	rem write the current sheet name to xls
+				 	objExcelSheet.Cells(intLastRow + t, 2) = sheetId
+				    rem now I can write all object ids to xls
+				    objExcelSheet.Cells(intLastRow + t, 3) = replace(objectId,"Document\","")
+				    rem default status of object as "new" object is 1
+				    rem needs to be set to 0 manually once filters or sets
+				    objExcelSheet.Cells(intLastRow + t, 4) = 1
+				    rem default visible to Admin
+				    objExcelSheet.Cells(intLastRow + t, 5) = 1
+				    rem increment the row counter only as a new row is added
+				    t = t+1
+				END IF
+				cleanVariable("RIGHTS" & replace(objectId,"Document\",""))
+			 next		
+		END IF
+	next
+
+	rem save xls and quir application
+	objExcelSheet.SaveAs getVariable("varFileXLSRights")
+	objExcel.Application.Quit
+	Set objExcelSheet = NOTHING
+	Set objExcel = NOTHING
+
+END SUB
+
+rem ** This sub will handle the users **
+rem checks if a user exists or not, if not appends it to cross table and to section access table
+rem after a user is created, he will be removed from the variable table, as its not needed
+SUB UserGroupsAppend
+
+	rem ** this routine will append all object ID's to the xls defined in varFileXLSRights **
+	rem Rights by Frenzel GmbH
+	rem Author Philipp Frenzel
+	
+	rem first we need to create an instance of Excel
+	Set objExcel = CREATEOBJECT("Excel.Application")
+	
+	rem then we open our workbook
+	WITH objExcel
+		.DefaultSaveFormat = xlWorkbookNormal
+		.DisplayAlerts = FALSE
+		.Workbooks.Open getVariable("varFileXLSRights")
+		.DisplayFullScreen = FALSE
+		.Visible = FALSE
+	END WITH
+	
+	rem switch to the first worksheet
+	Set objExcelSheet = objExcel.Worksheets(1)
+	rem check for current range
+	Set objExcelRange = objExcelSheet.UsedRange
+	rem here I got to the first blank in row 3
+	intMaxColumn = objExcelRange.Columns.Count
+	
+	REM get all values out of the path variable
+	ActiveDocument.Fields("RightsOrgaComparission").Clear
+	SET FieldValues = ActiveDocument.Fields("RightsOrgaComparission").GetPossibleValues
+	
+	REM here we grep all variables stored in the current document
+	Set objVars=ActiveDocument.GetVariableDescriptions
+	
+	REM temporary counter to reference the correct columns in the xls
+	varctr=0
+
+	'Loop through the field values
+	FOR vcp = 0 TO FieldValues.Count - 1
+		
+		varHasMatch = false
+		
+		'MsgBox (FieldValues.item(vcp).Text)
+		'Loop through the variables
+		FOR i = 0 TO objVars.Count - 1
+		  varctr=varctr+1
+		  set objTempVar = objVars.Item(i)
+		  varname=Trim(objTempVar.Name) 
+		  Set objSourceVar=ActiveDocument.Variables(varname) 
+		  varcontent=objSourceVar.GetRawContent
+		  'display the variable to check on progress if needed
+		  IF LEFT(varname,10) = "RIGHTSUSER" THEN
+			 
+		  	IF trim(varcontent) = trim(FieldValues.item(vcp).Text) THEN
+		  		varHasMatch = true
+		  	END IF
+			   
+		  END IF
+		
+		NEXT 'end of variables loop
+		
+		IF varHasMatch = false THEN
+			intMaxColumn = intMaxColumn + 1
+			objExcelSheet.Cells(3, intMaxColumn) = FieldValues.item(vcp).Text
+			objExcelSheet.Cells(4, intMaxColumn) = 0
+		  	REM DEBUG ONLY MsgBox (FieldValues.item(vcp).Text)  	
+		END IF 
+	NEXT 'end of field loop
+	
+	REM HERE WE DELETE ALL VARS AS THEY WOULD BREAK LOGIK
+	FOR i = 0 TO objVars.Count - 1
+	  varctr=varctr+1
+	  set objTempVar = objVars.Item(i)
+	  varname=Trim(objTempVar.Name) 
+	  'display the variable to check on progress if needed
+	  IF LEFT(varname,10) = "RIGHTSUSER" THEN
+		cleanVariable(varname)   
+	  END IF
+	NEXT 'end of variables loop
+	
+	REM Set objExcelRangeCell = objExcelSheet.Range("A3").End(xlToRight)
+	REM objExcelRangeCell.Select = "Dies ist nur ein Test"
+	
+	rem save xls and quir application
+	objExcelSheet.SaveAs getVariable("varFileXLSRights")
+	objExcel.Application.Quit
+	Set objExcelSheet = NOTHING
+	Set objExcel = NOTHING
+
+END SUB
+
+
+
+rem ** will read and return the content of a variable defined in script or document **
+rem Rights by Frenzel GmbH
+rem Author Philipp Frenzel
+
+function getVariable(varName)
+ Set v = ActiveDocument.Variables(varName)
+ IF v Is Nothing THEN
+ 	getVariable = ""
+ ELSE
+ 	getVariable = v.GetContent.String
+ END IF
+end function
+
+rem ** will unset a variable defined in script or document **
+rem Rights by Frenzel GmbH
+rem Author Philipp Frenzel
+
+function cleanVariable(varName)
+ Set v = ActiveDocument.Variables(varName)
+ IF v Is Nothing THEN
+ 	cleanVariable = TRUE
+ ELSE
+ 	ActiveDocument.RemoveVariable varName
+ 	cleanVariable = TRUE
+ END IF
+end function
+
+rem ** checks if a folder is created or not, if not will be created **
+rem Rights by Frenzel GmbH
+rem Author Philipp Frenzel
+function isFolder(varStringPath)
+	Dim objFSO
+	Dim objFolder
+	Dim Overwrite
+	Set objFSO = CreateObject("Scripting.FileSystemObject")
+	Overwrite = objFSO.FolderExists(varStringPath)
+	Select Case Overwrite
+	Case False: Set objFolder = objFSO.CreateFolder(varStringPath)
+	Case Else
+	End Select
+	Set objFSO = Nothing: Set objFolder = Nothing
+end function
+
+
+rem hide the sheets bar
+SUB HideSheets
+
+	ActiveDocument.GetApplication.ShowSheetsBar 1   ' docked top
+	ActiveDocument.GetApplication.ShowDesignBar 0   'hidden layout bar
+	ActiveDocument.GetApplication.ShowNavigationBar 0   ' docked top
+
+END SUB
